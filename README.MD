@@ -4,6 +4,9 @@
 
 1. [Introduction](#introduction)
 2. [First Node.js API](#first-nodejs-api)
+3. [Serving JSON](#serving-json)
+4. [Basic Routing](#basic-routing)
+5. [Dynamic Responses](#dynamic-responses)
 
 ---
 
@@ -86,6 +89,115 @@ With `http.createServer()`[^16] we create a HTTP server object and assign it to 
 server.listen(port);
 ```
 
+---
+
+## Serving JSON
+
+When building web apps and distributed systems, it's common to use JSON APIs to serve data.
+
+```javascript
+const server = http.createServer((req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify({ text: "Hi", numbers: [1, 2, 3] }));
+});
+```
+
+When building a production server, it's best to explicit with responses so that clients don't handle our data in unexpected ways. By sending plain text without `Content-Type` header, we didn't tell the client what kind of data it should expect. To set the `Content-Type` we use the `res.setHeader()`[^19] method. Visiting `http://localhost:1337/` will return the JSON object
+
+```json
+{
+  "text": "Hi",
+  "numbers": [1, 2, 3]
+}
+```
+
+---
+
+## Basic Routing
+
+Not all client requests are the same, and to create a useful API, we should be able to respond differently depending on the requested url path. We're going to change our request listener function to perform different actions depending on the value of `req.url`[^20] The `url` property of the `req` object will always contain the full path of the client request. For example, when we navigate to `http://localhost:1337` in the browser, the path is `/`, and when we navigate to `http://localhost:1337/fullstack`, the path is `/fullstack`. We need to create our different functions -- one for each behavior. We'll start with the functions for responding with plain-text and JSON. These new functions will use the same arguments as our request listener function and behave exactly the same as they did before:
+
+```javascript
+const respondText = (req, res) => {
+  res.setHeader("Content-Type", "text/plain");
+  res.end("Hi");
+};
+
+const respondJson = (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify({ text: "Hi", numbers: [1, 2, 3] }));
+};
+```
+
+The third function will handle a 404 "Not Found" error. To do this, we use the `res.writeHead()`[^21] method. This method will let us set both a response status code and header. The 404 status code tells the client that the communication to the server was successful, but the server is unable to find the requested data.
+
+```javascript
+const responsdNotFound = (req, res) => {
+  res.writeHead(404, { "Content-Type": "text/plain " });
+  res.end("Not Found");
+};
+```
+
+We can create a request listener function that calls each one depending on the path in `req.url`
+
+```javascript
+const server = http.createServer((req, res) => {
+  if (req.url === "/") return respondText(req, res);
+  if (req.url === "/json") return respondJson(req, res);
+
+  responsdNotFound(req, res);
+});
+```
+
+---
+
+## Dynamic Responses
+
+For apps and services in the real-world, the API will be responsible for pulling data out of a database or other resource according to specific queries sent by the client and filtered by authorization rules. To add this style of functionality to our API, we're going to add an endpoint that accepts arguments via query parameters. We'll then use the information provided by the client to create the response. Our new endpoint will be `/echo` and the client will provide input via the input query parameter. For example, to provide "fullstack" as `input`, the client will use `/echo?input=fullstack` as the url path. Our new endpoint will respond with a JSON object with the following properties:
+
+- `normal`: the input string without a transformation
+- `shouty`: all caps
+- `characterCount`: the number of characters in the input string
+- `backwards`: the input string ordered in reverse
+
+To begin, we'll first have our request listener function check to see if the `request.url` begins with `/echo`, the endpoint that we're interested in. If it is, we'll call our soon-to-be-created function `respondEcho()`:
+
+```javascript
+const server = http.createServer((req, res) => {
+  if (req.url === "/") return respondText(req, res);
+  if (req.url === "/json") return respondJson(req, res);
+  if (req.url.match(/^\/echo/)) return respondEcho(req, res);
+
+  responsdNotFound(req, res);
+});
+```
+
+Next, we create the respondEcho() function that will accept the request and response objects.
+
+```javascript
+const respondEcho = (req, res) => {
+  const { input = "" } = querystring.parse(
+    req.url.split("?").slice(1).join("")
+  );
+
+  res.setHeader("Content-Type", "application/json");
+  res.end(
+    JSON.stringify({
+      normal: input,
+      shouty: input.toUpperCase(),
+      characterCount: input.length,
+      backwards: input.split("").reverse().join(""),
+    })
+  );
+};
+```
+
+The important thing to notice is that the first line of our function uses the `querystring.parse()`[^22] method. To be able to use this, we first need to use `require()` to load the `querystring` core module. Like `http`, this module is installed with Node.js and is always available.
+
+> The `querystring` API is considered Legacy. While it is still maintained, new code should use the `URLSearchParams` API instead.
+
+We expect the client to access this endpoint with a url like `/echo?input=someinput`. `querystring.parse()` accepts a raw querystring argument. It expects the format to be something like `query1=value1&query2=value2`. The important thing to note is that `querystring.parse()` does not want the leading `?`. Using some quick string transformations we can isolate the input=someinput part of the url, and pass that in as our argument. `querystring.parse()` will return a simple JavaScript object with query param key and value pairs.
+
 [^1]: [Node.js API documentation](https://nodejs.org/api/index.html)
 [^2]: [express](https://expressjs.com/)
 [^3]: [hapi](https://hapi.dev/)
@@ -104,3 +216,8 @@ server.listen(port);
 [^16]: [createServer()](https://nodejs.org/api/http.html#http_http_createserver_options_requestlistener)
 [^17]: [req](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
 [^18]: [res](https://nodejs.org/api/http.html#http_class_http_serverresponse)
+[^19]: [setHeader()](https://nodejs.org/api/http.html#http_request_setheader_name_value)
+[^20]: [req.url](https://nodejs.org/api/http.html#http_message_url)
+[^21]: [writeHead()](https://nodejs.org/api/http.html#http_response_writehead_statuscode_statusmessage_headers)
+[^22]: [querystring](https://nodejs.org/api/querystring.html)
+[^23]: [URLSearchParams](https://nodejs.org/api/url.html#class-urlsearchparams)
