@@ -194,7 +194,7 @@ const respondEcho = (req, res) => {
 
 The important thing to notice is that the first line of our function uses the `querystring.parse()`[^22] method. To be able to use this, we first need to use `require()` to load the `querystring` core module. Like `http`, this module is installed with Node.js and is always available.
 
-> The `querystring` API is considered Legacy. While it is still maintained, new code should use the `URLSearchParams` API instead.
+> The `querystring` API is considered Legacy. While it is still maintained, new code should use the `URLSearchParams`[^23] API instead.
 
 We expect the client to access this endpoint with a url like `/echo?input=someinput`. `querystring.parse()` accepts a raw querystring argument. It expects the format to be something like `query1=value1&query2=value2`. The important thing to note is that `querystring.parse()` does not want the leading `?`. Using some quick string transformations we can isolate the input=someinput part of the url, and pass that in as our argument. `querystring.parse()` will return a simple JavaScript object with query param key and value pairs.
 
