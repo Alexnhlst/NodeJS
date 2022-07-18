@@ -1,4 +1,4 @@
-# Fullstack Node.JS [^1] :book:
+# First Node API
 
 ## Table of contents
 
