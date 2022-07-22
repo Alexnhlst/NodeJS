@@ -9,6 +9,8 @@
    - [Wrapping Up](#wrapping-up)
 3. [Promises](#promises)
    - [Real World Promises](#real-world-promises)
+   - [Creating A Function](#creating-a-function-1)
+   - [Wrapping Up](#wrapping-up-1)
 
 ---
 
@@ -365,6 +367,91 @@ fs.readFile(filename)
 So far, the biggest difference is that the promise has separate methods for success and failure. Unlike callbacks that are a single function with both error and results arguments, promises have separate methods `then()` and `catch()`. If the action is successful, `then()` is called with the result. If not, `catch()` is called with an error.
 
 ### Real World Promises
+
+```javascript
+const fs = require("fs").promises;
+
+fs.readdir("./")
+  .catch((err) => console.error(err))
+  .then((files) => {
+    files.forEach((file) => {
+      fs.readFile(file)
+        .catch((err) => console.error(err))
+        .then((data) => console.log(`${file}: ${data.length}`));
+    });
+
+    console.log("Done!");
+  });
+```
+
+When used this way, we'll run into the same issue with promises as we did with callbacks. within the `files.forEach()` iterator, our use of the `fs.readFile()` promise is non-blocking. This means that we're going to see `Done!` printed to the terminal before any of the results, and we're going get the results out of order. To be able to perform multiple async actions concurrently, we'll need to use `Promise.all()`. It is globally available in Node.js, and it execute an array of promises at the same time.
+
+```javascript
+fs.readdir("./")
+  .then((fileList) =>
+    Promise.all(
+      fileList
+        .map((file) => fs.readFile(file))
+        .then((data) => [file, data.length])
+    )
+  )
+  .then((results) => {
+    results.forEact(([file, length]) => console.log(`${file}: ${length}`));
+    console.log("Done!");
+  })
+  .catch((err) => console.error(err));
+```
+
+After we receive the file list `fileList` from `fs.readdir()` we use `fileList.map()` to transform it into an array of promises. Once we have an array of promises, we use `Promise.all()` to execute them all in parallel. When `Promise.all()` finishes, `results` will simply be an array of file data. Without also having the file names, we no longer will know which files the lengths belong to. In order to keep each length properly labeled, we need to modify what each promise returns. We do this by adding `.then()` returning `[file, data.length]`.
+
+### Creating A Function
+
+We can create a generalized function that can be used for any directory. Once we've generalized it, we can use it like this:
+
+```javascript
+const targetDirectory = process.argv[2] || "./";
+
+getFileLengths(targetDirectory)
+  .then((results) => {
+    results.forEach(([file, length]) => console.log(`${file}: ${length}`));
+    console.log("done!");
+  })
+  .catch((err) => console.error(err));
+```
+
+First we read the directory list, and then we use `fileList.map()` to transform that list into an array of promises. However, just like our callback example, we need some extra logic to handle arbitrary directories. Before creating a promise to read a file, we use `path.join()` to combine the directory with the file name to create a usable file path.
+
+```javascript
+const getFileLengths = (dir) => {
+  return fs.readdir(dir).then((fileList) => {
+    const readFiles = fileList.map((file) => {
+      const filePath = path.join(dir, file);
+      return readFile(filePath);
+    });
+    return Promise.all(readFiles);
+  });
+};
+```
+
+Just like our callback example, we use a customized readFile() function so that we can both ensure that our final result array is made up of file path, file length pairs, and that subdirectories are correctly handled.
+
+```javascript
+const readFile = (filePath) => {
+  return fs
+    .readFile(filePath)
+    .then((data) => [filePath, data.length])
+    .catch((err) => {
+      if (err.code === "EISDIR") return [filePath, 0];
+      throw err;
+    });
+};
+```
+
+The promise version of `readFile()` behaves similarly, but the implementation is a little different. As mentioned above, one of the biggest differences between callbacks and promises is error handling. In contrast to callbacks, the success and error paths of callbacks are handled with separate functions. When `then()` is called, we can be certain that we have not run into an error. We will have access to the file's data, and we can return a `[filePath, data.length]` pair as the result. With promises, errors flow into a the separate `catch()` function. We can intercept `EISDIR` errors and prevent them from breaking the chain. If the error code is `EISDIR`, we return with our modified result, `[filePath, 0]`. By using return within a `catch()`, we prevent the error from propagating. To downstream code, it will look like the operation successful returned this result. If any other error is thrown, we make sure not to return with a value. Instead, we re-throw the error. This will propagate the error down the chain -- successive `then()` calls will be skipped, and the next `catch()` will be run instead. Each call to `readFile()` will return a promise that results in a file path and length pair. Therefore when we use `Promise.all()` on an array of these promises, we will ultimately end up with an array of these pairs -- our desired outcome.
+
+### Wrapping Up
+
+Promises give us new ways of handling sequential and parallel async tasks, and we can take advantage of chaining `.then()` and `.catch()` calls to compose a series of tasks into a single function. Compared to callbacks, we can see that promises have two nice properties. First, we did not need to use our own `mapAsync()` function -- `Promise.all()` is globally available and handles that functionality for us. Second, errors are automatically propagated along the promise chain for us. When using callbacks, we need to check for errors and use early returns to manage this ourselves.
 
 [^1]: [fs](https://nodejs.org/api/fs.html)
 [^2]: [System call](https://man7.org/linux/man-pages/man3/readdir.3.html)
