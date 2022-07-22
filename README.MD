@@ -11,6 +11,8 @@
    - [Real World Promises](#real-world-promises)
    - [Creating A Function](#creating-a-function-1)
    - [Wrapping Up](#wrapping-up-1)
+4. [Async & Await](#async--await)
+   - [Real World Async/Await](#real-world-asyncawait)
 
 ---
 
@@ -452,6 +454,31 @@ The promise version of `readFile()` behaves similarly, but the implementation is
 ### Wrapping Up
 
 Promises give us new ways of handling sequential and parallel async tasks, and we can take advantage of chaining `.then()` and `.catch()` calls to compose a series of tasks into a single function. Compared to callbacks, we can see that promises have two nice properties. First, we did not need to use our own `mapAsync()` function -- `Promise.all()` is globally available and handles that functionality for us. Second, errors are automatically propagated along the promise chain for us. When using callbacks, we need to check for errors and use early returns to manage this ourselves.
+
+---
+
+## Async & Await
+
+The `async` and `await` keywords allow us to treat specific uses of promises as if they were synchronous
+
+```javascript
+const fs = require("fs").promises;
+
+const printLength = async (file) => {
+  try {
+    const data = await fs.readFile(file);
+    console.log(`${file}: ${data.length}`);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+printLength("async-await.js");
+```
+
+One cool thing about this is that we can use standard synchronous language features like `try/catch`. Even though `fs.readFile()` is a promise (and therefore asynchronous), we're able to wrap it in a `try/catch` block for error handling -- just like we would be able to do for synchronous code. It's important to note that we can only do these things within special `async` functions. Once we do that, we are able to use the `await` keyword within. For the most part, `await` allows us to treat promises as synchronous.
+
+### Real World Async/Await
 
 [^1]: [fs](https://nodejs.org/api/fs.html)
 [^2]: [System call](https://man7.org/linux/man-pages/man3/readdir.3.html)
